@@ -1,320 +1,109 @@
 <!DOCTYPE html>
-<html>
-<head>
-<title>Project Title</title>
-<meta charset="utf-8">
-<meta name="viewport" content="target-densitydpi=device-dpi, width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, minimal-ui" />
-<style> @-ms-viewport { width: device-width; } </style>
-<link rel="stylesheet" href="vendor/reset.min.css">
-<link rel="stylesheet" href="style.css">
-</head>
-<body class="multiple-scenes view-control-buttons">
-
-<div id="pano"></div>
-
-<div id="sceneList">
-  <ul class="scenes">
-    
-      <a href="javascript:void(0)" class="scene" data-id="0-1-the-annunciation">
-        <li class="text">1. The Annunciation</li>
-      </a>
-    
-      <a href="javascript:void(0)" class="scene" data-id="1-2-the-visitation">
-        <li class="text">2. The Visitation</li>
-      </a>
-    
-      <a href="javascript:void(0)" class="scene" data-id="2-3-the-nativity">
-        <li class="text">3. The Nativity</li>
-      </a>
-    
-      <a href="javascript:void(0)" class="scene" data-id="3-4-the-presentation-of-jesus">
-        <li class="text">4. The Presentation of Jesus</li>
-      </a>
-    
-      <a href="javascript:void(0)" class="scene" data-id="4-5-the-finding-of-jesus-in-the-temple">
-        <li class="text">5. The Finding of Jesus in the Temple</li>
-      </a>
-    
-  </ul>
-</div>
-
-<div id="titleBar">
-  <h1 class="sceneName"></h1>
-</div>
-
-<a href="javascript:void(0)" id="autorotateToggle">
-  <img class="icon off" src="img/play.png">
-  <img class="icon on" src="img/pause.png">
-</a>
-
-<a href="javascript:void(0)" id="fullscreenToggle">
-  <img class="icon off" src="img/fullscreen.png">
-  <img class="icon on" src="img/windowed.png">
-</a>
-
-<a href="javascript:void(0)" id="sceneListToggle">
-  <img class="icon off" src="img/expand.png">
-  <img class="icon on" src="img/collapse.png">
-</a>
-
-<a href="javascript:void(0)" id="viewUp" class="viewControlButton viewControlButton-1">
-  <img class="icon" src="img/up.png">
-</a>
-<a href="javascript:void(0)" id="viewDown" class="viewControlButton viewControlButton-2">
-  <img class="icon" src="img/down.png">
-</a>
-<a href="javascript:void(0)" id="viewLeft" class="viewControlButton viewControlButton-3">
-  <img class="icon" src="img/left.png">
-</a>
-<a href="javascript:void(0)" id="viewRight" class="viewControlButton viewControlButton-4">
-  <img class="icon" src="img/right.png">
-</a>
-<a href="javascript:void(0)" id="viewIn" class="viewControlButton viewControlButton-5">
-  <img class="icon" src="img/plus.png">
-</a>
-<a href="javascript:void(0)" id="viewOut" class="viewControlButton viewControlButton-6">
-  <img class="icon" src="img/minus.png">
-</a>
-
-<script src="vendor/screenfull.min.js" ></script>
-<script src="vendor/bowser.min.js" ></script>
-<script src="vendor/marzipano.js" ></script>
-
-<script src="data.js"></script>
-<script src="index.js"></script>
-
-</body>
-</html>
-
-
-<!DOCTYPE html> 
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Joyful Mysteries Audio</title>
+<title>Rosary PDF Viewer United States</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
 <style>
-  body {
-    margin: 0;
-    background: transparent;
-    font-family: Arial, sans-serif;
-    color: #fff;
-  }
-
-  :root{
-    --player-top-offset: 64px;   /* below gray bar */
-    --player-right-offset: 6px;  /* closer to corner */
-  }
-
-  .player {
-    position: fixed;
-    top: var(--player-top-offset);
-    right: var(--player-right-offset);
-    z-index: 9999;
-    user-select: none;
-  }
-
-  .player-panel {
-    padding: 10px 12px;
-    border-radius: 14px;
-    background: rgba(0,0,0,0.35);
-    border: 1px solid rgba(255,255,255,0.18);
-    box-shadow: 0 10px 30px rgba(0,0,0,0.35);
-    backdrop-filter: blur(6px);
-    transform-origin: top right;
-  }
-
-  .controls {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 10px;
-  }
-
-  /* ✅ only hide/show these controls, not the Audio handle */
-  .player.controls-hidden .controls-main {
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    width: 0;
+  html, body {
     margin: 0;
     padding: 0;
-  }
-
-  /* Timeline */
-  .timeline {
-    width: 120px;
-    height: 8px;
-    background: rgba(255,255,255,0.12);
-    border: 1px solid rgba(255,255,255,0.28);
-    border-radius: 999px;
-    cursor: pointer;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .timeline-progress {
     height: 100%;
-    width: 0%;
-    background: rgba(255,255,255,0.9);
-    border-radius: 999px;
-    pointer-events: none;
+    background: #111;
+    overflow: hidden;
+    font-family: Arial, sans-serif;
   }
 
-  .marker {
-    position: absolute;
-    top: -5px;
-    width: 2px;
-    height: 18px;
-    background: rgba(255,255,255,0.35);
-  }
-
-  /* Buttons */
-  .btn,
-  .volume-btn {
-    width: 34px;
-    height: 34px;
-    border-radius: 50%;
-    background: rgba(255,255,255,0.22);
-    border: 1px solid rgba(255,255,255,0.35);
-    backdrop-filter: blur(4px);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 2;
-    transition: background 0.2s ease, border-color 0.2s ease;
-    flex: 0 0 auto;
-  }
-
-  .btn:hover,
-  .volume-btn:hover {
-    background: rgba(255,255,255,0.32);
-    border-color: rgba(255,255,255,0.55);
-  }
-
-  /* White icons */
-  .play-icon {
-    width: 0;
-    height: 0;
-    border-left: 14px solid rgba(255,255,255,0.95);
-    border-top: 8px solid transparent;
-    border-bottom: 8px solid transparent;
-    margin-left: 2px;
-  }
-
-  .pause-icon {
-    display: flex;
-    gap: 4px;
-  }
-
-  .pause-icon span {
-    width: 5px;
-    height: 16px;
-    background: rgba(255,255,255,0.95);
-  }
-
-  /* Volume */
-  .volume-container {
-    position: relative;
-    width: 34px;
-    height: 34px;
-    flex: 0 0 auto;
-  }
-
-  .volume-btn svg {
-    width: 18px;
-    height: 18px;
-    fill: rgba(255,255,255,0.95);
-  }
-
-  .volume-slider {
-    position: absolute;
+  /* ===== TOOLBAR ===== */
+  .toolbar {
+    position: fixed;
+    top: 0;
+    left: 0;
     right: 0;
-    top: 42px;
-    width: 120px;
-    display: none;
-    z-index: 999;
-  }
-
-  .volume-container.open .volume-slider {
-    display: block;
-  }
-
-  .volume-slider::-webkit-slider-runnable-track {
-    height: 4px;
-    background: rgba(255,255,255,0.9);
-    border-radius: 999px;
-  }
-
-  .volume-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 12px;
-    height: 12px;
-    background: #000;
-    border-radius: 50%;
-    margin-top: -4px;
-    cursor: pointer;
-  }
-
-  .volume-slider::-moz-range-track {
-    height: 4px;
-    background: rgba(255,255,255,0.9);
-    border-radius: 999px;
-  }
-
-  .volume-slider::-moz-range-thumb {
-    width: 12px;
-    height: 12px;
-    background: #000;
-    border-radius: 50%;
-    cursor: pointer;
-  }
-
-  /* Handle */
-  .player-handle {
-    display: inline-flex;
+    height: 44px;
+    background: rgba(0,0,0,0.85);
+    display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    height: 34px;
-    padding: 0 10px;
-    border-radius: 999px;
-    background: rgba(0,0,0,0.35);
-    border: 1px solid rgba(255,255,255,0.18);
-    backdrop-filter: blur(6px);
+    gap: 10px;
+    z-index: 1000;
+  }
+
+  .toolbar button {
+    background: #fff;
+    border: none;
+    padding: 6px 12px;
+    font-size: 14px;
+    border-radius: 4px;
     cursor: pointer;
-    white-space: nowrap;
-    flex: 0 0 auto;
   }
 
-  .player-handle .dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: rgba(255,255,255,0.8);
-    display: inline-block;
+  /* ===== VIEWER ===== */
+  #viewer-container {
+    position: absolute;
+    top: 44px;
+    bottom: 44px;
+    left: 0;
+    right: 0;
+    overflow: hidden;
+    touch-action: none;
   }
 
-  .player-handle .label {
-    font-size: 12px;
-    opacity: 0.9;
-    letter-spacing: 0.2px;
+  #viewer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: 0 0;
+    cursor: grab;
+
+    /* 🚀 PERFORMANCE BOOST */
+    will-change: transform;
+    transform: translateZ(0);
   }
 
-  /* Mobile: center top */
+  #viewer.dragging {
+    cursor: grabbing;
+  }
+
+  canvas {
+    display: block;
+    margin: 0 auto;
+  }
+
+  /* ===== PAGE NAV ===== */
+  .page-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 44px;
+    background: rgba(0,0,0,0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    z-index: 1000;
+    color: #fff;
+    font-size: 14px;
+  }
+
+  .page-nav button {
+    background: #fff;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
   @media (max-width: 768px) {
-    .player {
-      left: 50%;
-      right: auto;
-      transform: translateX(-50%);
-      top: calc(var(--player-top-offset) + 6px);
+    .toolbar, .page-nav {
+      height: 50px;
     }
-    .controls {
-      justify-content: center;
-    }
-    .player-panel {
-      transform-origin: top center;
+    #viewer-container {
+      top: 50px;
+      bottom: 50px;
     }
   }
 </style>
@@ -322,220 +111,219 @@
 
 <body>
 
-<!-- Starts expanded -->
-<div class="player" id="player">
-  <div class="player-panel" id="playerPanel">
-    <div class="controls">
-
-      <!-- ✅ Controls that hide/show -->
-      <div class="controls-main" id="controlsMain" style="display:flex; align-items:center; gap:10px;">
-        <button class="btn" onclick="playPause(); event.stopPropagation();">
-          <div class="play-icon" id="playIcon"></div>
-        </button>
-
-        <div class="timeline" id="timeline">
-          <div class="timeline-progress" id="progress"></div>
-        </div>
-
-        <div class="volume-container" id="volumeContainer">
-          <button class="volume-btn" onclick="toggleVolume(event)">
-            <svg id="volIcon" viewBox="0 0 24 24">
-              <path d="M3 9v6h4l5 5V4L7 9H3z"></path>
-              <path id="wave1" d="M14.5 12c0-1.77-1.02-3.29-2.5-4.03v8.06c1.48-.74 2.5-2.26 2.5-4.03z"></path>
-              <path id="wave2" d="M16.5 12c0 2.5-1.46 4.67-3.5 5.77v-2.06c1.44-.93 2.5-2.61 2.5-4.71s-1.06-3.78-2.5-4.71V6.23c2.04 1.1 3.5 3.27 3.5 5.77z"></path>
-            </svg>
-          </button>
-
-          <input type="range" class="volume-slider"
-            min="0" max="1" step="0.01" value="1"
-            oninput="setVolume(this.value)">
-        </div>
-      </div>
-
-      <!-- ✅ Audio handle ALWAYS stays visible -->
-      <div class="player-handle" id="playerHandle" aria-label="Toggle audio controls">
-        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
-        <span class="label">Audio</span>
-      </div>
-
-    </div>
-  </div>
+<div class="toolbar">
+  <button onclick="zoomOut()">−</button>
+  <button onclick="zoomIn()">+</button>
+  <button onclick="toggleFullscreen()">⤢ Fullscreen</button>
 </div>
 
-<audio id="audio" preload="auto"></audio>
+<div id="viewer-container">
+  <div id="viewer"></div>
+</div>
+
+<div class="page-nav">
+  <button onclick="prevPage()">◀</button>
+  <span id="pageIndicator">Page 1</span>
+  <button onclick="nextPage()">▶</button>
+</div>
 
 <script>
-  const tracks = [
-    { src: "./Joyful-Mysteries-1.mp3" },
-    { src: "./Joyful-Mysteries-2.mp3" },
-    { src: "./Joyful-Mysteries-3.mp3" },
-    { src: "./Joyful-Mysteries-4.mp3" },
-    { src: "./Joyful-Mysteries-5.mp3" }
-  ];
+  const url = './How-to-Pray-the-Rosary-Instructions-United-States.pdf';
 
-  const audio = document.getElementById("audio");
-  const playIcon = document.getElementById("playIcon");
-  const timeline = document.getElementById("timeline");
-  const progress = document.getElementById("progress");
-  const volIcon = document.getElementById("volIcon");
-  const volumeContainer = document.getElementById("volumeContainer");
-  const player = document.getElementById("player");
-  const playerHandle = document.getElementById("playerHandle");
-  const controlsMain = document.getElementById("controlsMain");
+  let pdfDoc = null;
+  let pageNum = 1;
+  let totalPages = 0;
 
-  let durations = [], offsets = [], totalDuration = 0;
-  let currentIndex = 0;
-  let dragging = false;
+  /* 🔍 Default zoom — more zoomed out on phones */
+  let scale = window.innerWidth < 768 ? 0.3 : 0.35;
+  let posX = 0;
+  let posY = 0;
 
-  // ✅ NEW: track first user interaction for click-to-play
-  let userHasInteracted = false;
+  /* 🎯 Smoothed transform targets */
+  let targetScale = scale;
+  let targetX = posX;
+  let targetY = posY;
+  let rafPending = false;
 
-  // ✅ Hide controls helper (keeps handle visible)
-  function hideControls() {
-    player.classList.add("controls-hidden");
-    volumeContainer.classList.remove("open");
-  }
-  function showControls() {
-    player.classList.remove("controls-hidden");
-  }
-  function toggleControls() {
-    const hidden = player.classList.contains("controls-hidden");
-    hidden ? showControls() : hideControls();
-  }
+  const viewer = document.getElementById('viewer');
+  const container = document.getElementById('viewer-container');
+  const indicator = document.getElementById('pageIndicator');
 
-  // ✅ Icon helpers
-  function setPlayIcon() {
-    playIcon.className = "play-icon";
-    playIcon.innerHTML = "";
-  }
-  function setPauseIcon() {
-    playIcon.className = "pause-icon";
-    playIcon.innerHTML = "<span></span><span></span>";
-  }
-
-  // ✅ Load track WITHOUT autoplay (triangle icon by default)
-  function loadTrack(i) {
-    currentIndex = i;
-    audio.src = tracks[i].src;
-    audio.load();       // preload only
-    setPlayIcon();      // triangle until audio actually plays
-  }
-
-  // ✅ Play/pause button sets interaction + icons
-  function playPause() {
-    userHasInteracted = true;
-
-    if (audio.paused) {
-      audio.play().then(() => setPauseIcon()).catch(() => {});
-    } else {
-      audio.pause();
-      setPlayIcon();
-    }
-  }
-
-  Promise.all(tracks.map(t => new Promise(res => {
-    const a = new Audio(t.src);
-    a.onloadedmetadata = () => res(a.duration);
-  }))).then(times => {
-    durations = times;
-    offsets = times.map((_, i) => times.slice(0, i).reduce((a, b) => a + b, 0));
-    totalDuration = times.reduce((a, b) => a + b, 0);
-    drawMarkers();
-    loadTrack(0); // ✅ stays paused with triangle icon
+  pdfjsLib.getDocument(url).promise.then(pdf => {
+    pdfDoc = pdf;
+    totalPages = pdf.numPages;
+    renderPage();
   });
 
-  function drawMarkers() {
-    offsets.forEach(o => {
-      const m = document.createElement("div");
-      m.className = "marker";
-      m.style.left = `${(o / totalDuration) * 100}%`;
-      timeline.appendChild(m);
+  function renderPage() {
+    viewer.innerHTML = '';
+    pdfDoc.getPage(pageNum).then(page => {
+      const viewport = page.getViewport({ scale: 1 });
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+
+      page.render({ canvasContext: ctx, viewport });
+      viewer.appendChild(canvas);
+
+      indicator.textContent = `Page ${pageNum} / ${totalPages}`;
+      resetTransform();
     });
   }
 
-  audio.addEventListener("timeupdate", () => {
-    const globalTime = offsets[currentIndex] + audio.currentTime;
-    progress.style.width = `${(globalTime / totalDuration) * 100}%`;
+  function resetTransform() {
+    targetScale = scale;
+    targetX = (container.clientWidth - viewer.clientWidth * scale) / 2;
+    targetY = 20;
+    posX = targetX;
+    posY = targetY;
+    applyTransform();
+  }
 
-    if (audio.currentTime >= audio.duration && currentIndex < tracks.length - 1) {
-      // Auto-advance. If already playing, continue playing; if paused, stay paused.
-      const wasPlaying = !audio.paused;
-      loadTrack(currentIndex + 1);
-      if (wasPlaying) {
-        audio.play().then(() => setPauseIcon()).catch(() => {});
-      }
-    }
-  });
+  /* 🧈 RAF-smoothed transform */
+  function applyTransform() {
+    if (rafPending) return;
 
-  function seekTo(percent) {
-    const targetTime = percent * totalDuration;
-    const index = offsets.findIndex((o, i) => targetTime < o + durations[i]);
+    rafPending = true;
+    requestAnimationFrame(() => {
+      viewer.style.transform =
+        `translate(${targetX}px, ${targetY}px) scale(${targetScale})`;
+      rafPending = false;
+    });
+  }
 
-    const wasPlaying = !audio.paused;
-    loadTrack(index);
-    audio.currentTime = targetTime - offsets[index];
+  function zoomAtPoint(delta, cx, cy) {
+    const prevScale = targetScale;
+    targetScale = Math.min(Math.max(0.25, targetScale + delta), 4);
 
-    // Keep state: if was playing, keep playing after seek
-    if (wasPlaying) {
-      audio.play().then(() => setPauseIcon()).catch(() => {});
+    const dx = cx - targetX;
+    const dy = cy - targetY;
+
+    targetX -= dx * (targetScale / prevScale - 1);
+    targetY -= dy * (targetScale / prevScale - 1);
+
+    scale = targetScale;
+    posX = targetX;
+    posY = targetY;
+
+    applyTransform();
+  }
+
+  /* 🔘 Buttons */
+  function zoomIn() {
+    zoomAtPoint(0.2, container.clientWidth / 2, container.clientHeight / 2);
+  }
+
+  function zoomOut() {
+    zoomAtPoint(-0.2, container.clientWidth / 2, container.clientHeight / 2);
+  }
+
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+    } else {
+      document.exitFullscreen();
     }
   }
 
-  function handleSeek(clientX) {
-    const rect = timeline.getBoundingClientRect();
-    const pct = Math.min(Math.max((clientX - rect.left) / rect.width, 0), 1);
-    seekTo(pct);
+  function nextPage() {
+    if (pageNum < totalPages) {
+      pageNum++;
+      renderPage();
+    }
   }
 
-  timeline.addEventListener("mousedown", e => {
-    e.stopPropagation();
+  function prevPage() {
+    if (pageNum > 1) {
+      pageNum--;
+      renderPage();
+    }
+  }
+
+  /* 🖐 PAN / DRAG */
+  let dragging = false;
+  let startX, startY;
+
+  container.addEventListener('pointerdown', e => {
     dragging = true;
-    handleSeek(e.clientX);
-  });
-  window.addEventListener("mousemove", e => dragging && handleSeek(e.clientX));
-  window.addEventListener("mouseup", () => dragging = false);
-
-  timeline.addEventListener("touchstart", e => {
-    e.stopPropagation();
-    dragging = true;
-    handleSeek(e.touches[0].clientX);
-  }, { passive: true });
-  timeline.addEventListener("touchmove", e => dragging && handleSeek(e.touches[0].clientX), { passive: true });
-  window.addEventListener("touchend", () => dragging = false);
-
-  function setVolume(v) {
-    audio.volume = v;
-    volIcon.querySelector("#wave2").style.display = v < 0.4 ? "none" : "";
-    volIcon.querySelector("#wave1").style.display = v < 0.2 ? "none" : "";
-  }
-
-  function toggleVolume(e) {
-    e.stopPropagation();
-    volumeContainer.classList.toggle("open");
-  }
-
-  // ✅ Clicking the "••• Audio" toggles main controls only (handle remains)
-  playerHandle.addEventListener("click", (e) => {
-    e.stopPropagation();
-    toggleControls();
+    viewer.classList.add('dragging');
+    startX = e.clientX - targetX;
+    startY = e.clientY - targetY;
   });
 
-  // ✅ Clicking inside controls should NOT hide them
-  controlsMain.addEventListener("click", (e) => {
-    e.stopPropagation();
+  window.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    targetX = e.clientX - startX;
+    targetY = e.clientY - startY;
+    posX = targetX;
+    posY = targetY;
+    applyTransform();
   });
 
-  // ✅ Clicking anywhere on screen:
-  // 1) auto-start audio on first interaction
-  // 2) hide the controls (handle stays)
-  document.addEventListener("click", () => {
-    if (!userHasInteracted) {
-      userHasInteracted = true;
-      if (audio.paused) {
-        audio.play().then(() => setPauseIcon()).catch(() => {});
-      }
+  window.addEventListener('pointerup', () => {
+    dragging = false;
+    viewer.classList.remove('dragging');
+  });
+
+  /* 🖱 Desktop scroll zoom */
+  container.addEventListener('wheel', e => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 0.12 : -0.12;
+    zoomAtPoint(delta, e.offsetX, e.offsetY);
+  }, { passive: false });
+
+  /* 🤏 Mobile pinch zoom (stable) */
+  let lastDistance = null;
+
+  container.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) {
+      lastDistance = getDistance(e.touches[0], e.touches[1]);
     }
-    hideControls();
+  }, { passive: false });
+
+  container.addEventListener('touchmove', e => {
+    if (e.touches.length === 2 && lastDistance !== null) {
+      e.preventDefault();
+
+      const currentDistance = getDistance(e.touches[0], e.touches[1]);
+      const delta = (currentDistance - lastDistance) * 0.0018;
+
+      const rect = container.getBoundingClientRect();
+      const centerX =
+        (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left;
+      const centerY =
+        (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top;
+
+      zoomAtPoint(delta, centerX, centerY);
+      lastDistance = currentDistance;
+    }
+  }, { passive: false });
+
+  container.addEventListener('touchend', () => {
+    lastDistance = null;
+  });
+
+  function getDistance(t1, t2) {
+    return Math.hypot(
+      t2.clientX - t1.clientX,
+      t2.clientY - t1.clientY
+    );
+  }
+
+  /* 👆 Double tap zoom */
+  let lastTap = 0;
+  container.addEventListener('click', () => {
+    const now = Date.now();
+    if (now - lastTap < 300) {
+      zoomAtPoint(
+        scale > 1 ? -scale + 0.85 : 0.7,
+        container.clientWidth / 2,
+        container.clientHeight / 2
+      );
+    }
+    lastTap = now;
   });
 </script>
 
