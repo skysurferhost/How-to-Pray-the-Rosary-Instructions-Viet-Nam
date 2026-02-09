@@ -47,16 +47,8 @@
     bottom: 44px;
     left: 0;
     right: 0;
-    overflow: hidden;     /* single-page mode */
-    touch-action: none;   /* single-page mode */
-  }
-
-  /* Continuous scroll mode uses native scroll */
-  #viewer-container.continuous {
-    overflow-y: auto;
-    overflow-x: hidden;
-    touch-action: pan-y;
-    -webkit-overflow-scrolling: touch;
+    overflow: hidden;
+    touch-action: none;
   }
 
   #viewer {
@@ -65,33 +57,19 @@
     left: 0;
     transform-origin: 0 0;
     cursor: grab;
-
     will-change: transform;
     transform: translateZ(0);
-  }
-
-  /* In continuous mode, viewer becomes normal flow */
-  #viewer-container.continuous #viewer {
-    position: relative;
-    top: 0;
-    left: 0;
-    cursor: default;
-    transform: none !important;
-    will-change: auto;
   }
 
   #viewer.dragging {
     cursor: grabbing;
   }
 
-  /* Each page canvas */
-  .pageCanvas {
+  canvas {
     display: block;
-    margin: 12px auto;
-    background: #111;
   }
 
-  /* ===== PAGE NAV ===== */
+  /* ===== BOTTOM BAR ===== */
   .page-nav {
     position: fixed;
     bottom: 0;
@@ -136,12 +114,8 @@
 </div>
 
 <div class="page-nav">
-  <!-- ✅ Toggle continuous scroll -->
-  <button id="continuousBtn" onclick="toggleContinuous()">Enable Continuous Scroll</button>
-
-  <!-- Page buttons still available (works in both modes; in continuous mode it scrolls to that page) -->
   <button onclick="prevPage()">◀</button>
-  <span id="pageIndicator">Page 1</span>
+  <span id="pageIndicator">Loading…</span>
   <button onclick="nextPage()">▶</button>
 </div>
 
@@ -151,60 +125,107 @@
   let pdfDoc = null;
   let totalPages = 0;
 
-  // Single-page state
-  let pageNum = 1;
+  // ✅ Start much more zoomed out
+  let scale = window.innerWidth < 768 ? 0.24 : 0.30;
+  const MIN_SCALE = 0.18;
+  const MAX_SCALE = 4;
 
-  // Zoom scale (used in both modes)
-  let scale = window.innerWidth < 768 ? 0.65 : 0.8; // continuous-friendly default
-  const MIN_SCALE = 0.4;
-  const MAX_SCALE = 2.5;
+  // Pan position (continuous-pan)
+  let x = 0;
+  let y = 0;
 
-  // Single-page pan state
-  let targetX = 0;
-  let targetY = 0;
+  // Smooth draw
   let rafPending = false;
 
-  // Mode
-  let continuous = false;
+  // Page tracking (based on y position)
+  let currentPage = 1;
 
   const viewer = document.getElementById('viewer');
   const container = document.getElementById('viewer-container');
   const indicator = document.getElementById('pageIndicator');
-  const continuousBtn = document.getElementById('continuousBtn');
 
-  pdfjsLib.getDocument(url).promise.then(pdf => {
+  let stripCanvas = null;
+  let stripCtx = null;
+
+  // Layout info for stacked pages
+  let pageRects = [];  // [{page, yTop, yBottom}]
+  let stripWidth = 0;
+  let stripHeight = 0;
+  const PAGE_GAP = 24; // space between pages in the big strip
+
+  pdfjsLib.getDocument(url).promise.then(async pdf => {
     pdfDoc = pdf;
     totalPages = pdf.numPages;
-    renderSinglePage(); // default
+    await renderContinuousPanStrip();
+    resetView();
+    updateIndicator();
   });
 
-  /* =========================
-     RENDER: SINGLE PAGE
-  ========================== */
-  async function renderSinglePage() {
-    continuous = false;
-    container.classList.remove('continuous');
-    continuousBtn.textContent = "Enable Continuous Scroll";
-
+  async function renderContinuousPanStrip() {
     viewer.innerHTML = '';
-    const page = await pdfDoc.getPage(pageNum);
+    stripCanvas = document.createElement('canvas');
+    stripCtx = stripCanvas.getContext('2d', { alpha: false });
+    viewer.appendChild(stripCanvas);
 
-    const viewport = page.getViewport({ scale: 1 });
-    const canvas = document.createElement('canvas');
-    canvas.className = "pageCanvas";
-    const ctx = canvas.getContext('2d');
+    // First pass: measure using scale=1 viewports
+    const viewports = [];
+    stripWidth = 0;
+    stripHeight = 0;
+    pageRects = [];
 
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
+    for (let i = 1; i <= totalPages; i++) {
+      const page = await pdfDoc.getPage(i);
+      const vp = page.getViewport({ scale: 1 });
+      viewports.push(vp);
+      stripWidth = Math.max(stripWidth, Math.ceil(vp.width));
+    }
 
-    await page.render({ canvasContext: ctx, viewport }).promise;
-    viewer.appendChild(canvas);
+    // Total height = sum heights + gaps
+    for (let i = 0; i < viewports.length; i++) {
+      stripHeight += Math.ceil(viewports[i].height);
+      if (i !== viewports.length - 1) stripHeight += PAGE_GAP;
+    }
 
-    indicator.textContent = `Page ${pageNum} / ${totalPages}`;
+    stripCanvas.width = stripWidth;
+    stripCanvas.height = stripHeight;
 
-    // center page
-    targetX = (container.clientWidth - canvas.width * scale) / 2;
-    targetY = 20;
+    // Fill background once
+    stripCtx.fillStyle = "#111";
+    stripCtx.fillRect(0, 0, stripWidth, stripHeight);
+
+    // Second pass: render each page into the strip
+    let yCursor = 0;
+    for (let i = 1; i <= totalPages; i++) {
+      const page = await pdfDoc.getPage(i);
+      const vp = page.getViewport({ scale: 1 });
+
+      // center page horizontally inside strip
+      const xOffset = Math.floor((stripWidth - vp.width) / 2);
+
+      // white page background for readability
+      stripCtx.fillStyle = "#ffffff";
+      stripCtx.fillRect(xOffset, yCursor, vp.width, vp.height);
+
+      await page.render({
+        canvasContext: stripCtx,
+        viewport: vp,
+        transform: [1, 0, 0, 1, xOffset, yCursor] // draw into strip
+      }).promise;
+
+      pageRects.push({
+        page: i,
+        yTop: yCursor,
+        yBottom: yCursor + vp.height
+      });
+
+      yCursor += vp.height + PAGE_GAP;
+    }
+  }
+
+  function resetView() {
+    // Center strip in view at start (top-ish)
+    x = (container.clientWidth - stripCanvas.width * scale) / 2;
+    y = 20;
     applyTransform();
   }
 
@@ -212,152 +233,93 @@
     if (rafPending) return;
     rafPending = true;
     requestAnimationFrame(() => {
-      viewer.style.transform = `translate(${targetX}px, ${targetY}px) scale(${scale})`;
+      viewer.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
       rafPending = false;
+      updateIndicator();
     });
   }
 
-  /* =========================
-     RENDER: CONTINUOUS (ALL PAGES)
-  ========================== */
-  async function renderContinuous() {
-    continuous = true;
-    container.classList.add('continuous');
-    continuousBtn.textContent = "Disable Continuous Scroll";
-
-    viewer.innerHTML = '';
-
-    // Render all pages stacked
-    for (let i = 1; i <= totalPages; i++) {
-      const page = await pdfDoc.getPage(i);
-      const viewport = page.getViewport({ scale }); // scale applied here
-      const canvas = document.createElement('canvas');
-      canvas.className = "pageCanvas";
-      canvas.dataset.page = String(i);
-
-      const ctx = canvas.getContext('2d');
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-
-      // render sequentially (stable)
-      await page.render({ canvasContext: ctx, viewport }).promise;
-      viewer.appendChild(canvas);
-    }
-
-    // show page indicator based on scroll position
-    updateIndicatorFromScroll();
-    container.scrollTop = 0;
+  function clampScale(s) {
+    return Math.min(Math.max(MIN_SCALE, s), MAX_SCALE);
   }
 
-  function updateIndicatorFromScroll() {
-    if (!continuous) return;
+  function zoomAtPoint(delta, cx, cy) {
+    const prev = scale;
+    scale = clampScale(scale + delta);
 
-    const canvases = viewer.querySelectorAll('.pageCanvas');
-    const top = container.scrollTop;
+    // keep zoom centered around pointer location
+    const dx = cx - x;
+    const dy = cy - y;
+    x -= dx * (scale / prev - 1);
+    y -= dy * (scale / prev - 1);
 
-    let current = 1;
-    canvases.forEach((c, idx) => {
-      // page top relative to scroll container
-      const y = c.offsetTop;
-      if (y <= top + 30) current = idx + 1;
-    });
-
-    pageNum = current;
-    indicator.textContent = `Page ${pageNum} / ${totalPages}`;
+    applyTransform();
   }
 
-  container.addEventListener('scroll', () => {
-    if (continuous) updateIndicatorFromScroll();
-  });
-
-  /* =========================
-     CONTINUOUS TOGGLE
-  ========================== */
-  function toggleContinuous() {
-    if (!pdfDoc) return;
-    if (continuous) {
-      renderSinglePage();
-    } else {
-      renderContinuous();
-    }
-  }
-
-  /* =========================
-     ZOOM (BOTH MODES)
-  ========================== */
   function zoomIn() {
-    setScale(scale + 0.1);
+    zoomAtPoint(0.15, container.clientWidth / 2, container.clientHeight / 2);
   }
+
   function zoomOut() {
-    setScale(scale - 0.1);
-  }
-  function setScale(newScale) {
-    scale = Math.min(Math.max(MIN_SCALE, newScale), MAX_SCALE);
-
-    if (continuous) {
-      // re-render all pages at new scale
-      renderContinuous();
-    } else {
-      // just re-apply transform in single-page mode
-      applyTransform();
-    }
+    zoomAtPoint(-0.15, container.clientWidth / 2, container.clientHeight / 2);
   }
 
-  /* =========================
-     FULLSCREEN
-  ========================== */
   function toggleFullscreen() {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen();
-    } else {
-      document.exitFullscreen();
-    }
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+    else document.exitFullscreen();
   }
 
-  /* =========================
-     PAGE NAV (BOTH MODES)
-  ========================== */
-  function nextPage() {
-    if (pageNum < totalPages) {
-      pageNum++;
-      if (continuous) scrollToPage(pageNum);
-      else renderSinglePage();
-    }
-  }
+  function updateIndicator() {
+    if (!stripCanvas) return;
 
-  function prevPage() {
-    if (pageNum > 1) {
-      pageNum--;
-      if (continuous) scrollToPage(pageNum);
-      else renderSinglePage();
+    // Estimate which page is at center of viewport
+    const viewCenterY = (container.clientHeight / 2 - y) / scale;
+
+    let best = 1;
+    for (const r of pageRects) {
+      if (viewCenterY >= r.yTop && viewCenterY <= r.yBottom) {
+        best = r.page;
+        break;
+      }
+      if (viewCenterY > r.yBottom) best = r.page;
     }
+    currentPage = best;
+    indicator.textContent = `Page ${currentPage} / ${totalPages}`;
   }
 
   function scrollToPage(n) {
-    const c = viewer.querySelector(`.pageCanvas[data-page="${n}"]`);
-    if (!c) return;
-    container.scrollTo({ top: c.offsetTop - 10, behavior: 'smooth' });
-    indicator.textContent = `Page ${n} / ${totalPages}`;
+    const r = pageRects.find(p => p.page === n);
+    if (!r) return;
+
+    // Move so that page top is visible near top
+    const targetY = 20 - r.yTop * scale;
+    y = targetY;
+    applyTransform();
   }
 
-  /* =========================
-     PAN / DRAG (SINGLE PAGE ONLY)
-  ========================== */
+  function nextPage() {
+    if (currentPage < totalPages) scrollToPage(currentPage + 1);
+  }
+
+  function prevPage() {
+    if (currentPage > 1) scrollToPage(currentPage - 1);
+  }
+
+  /* ===== PAN / DRAG (ALL DEVICES) ===== */
   let dragging = false;
   let startX, startY;
 
   container.addEventListener('pointerdown', e => {
-    if (continuous) return;
     dragging = true;
     viewer.classList.add('dragging');
-    startX = e.clientX - targetX;
-    startY = e.clientY - targetY;
+    startX = e.clientX - x;
+    startY = e.clientY - y;
   });
 
   window.addEventListener('pointermove', e => {
-    if (!dragging || continuous) return;
-    targetX = e.clientX - startX;
-    targetY = e.clientY - startY;
+    if (!dragging) return;
+    x = e.clientX - startX;
+    y = e.clientY - startY;
     applyTransform();
   });
 
@@ -366,35 +328,33 @@
     viewer.classList.remove('dragging');
   });
 
-  /* =========================
-     DESKTOP WHEEL ZOOM (SINGLE PAGE ONLY)
-  ========================== */
+  /* ===== DESKTOP WHEEL ZOOM ===== */
   container.addEventListener('wheel', e => {
-    if (continuous) return; // in continuous, wheel scrolls normally
     e.preventDefault();
-    const delta = e.deltaY < 0 ? 0.08 : -0.08;
-    setScale(scale + delta);
+    const delta = e.deltaY < 0 ? 0.10 : -0.10;
+    zoomAtPoint(delta, e.offsetX, e.offsetY);
   }, { passive: false });
 
-  /* =========================
-     MOBILE PINCH ZOOM (SINGLE PAGE ONLY)
-  ========================== */
+  /* ===== MOBILE PINCH ZOOM ===== */
   let lastDistance = null;
 
   container.addEventListener('touchstart', e => {
-    if (continuous) return;
     if (e.touches.length === 2) {
       lastDistance = getDistance(e.touches[0], e.touches[1]);
     }
   }, { passive: false });
 
   container.addEventListener('touchmove', e => {
-    if (continuous) return;
     if (e.touches.length === 2 && lastDistance !== null) {
       e.preventDefault();
       const currentDistance = getDistance(e.touches[0], e.touches[1]);
-      const delta = (currentDistance - lastDistance) * 0.0012;
-      setScale(scale + delta);
+      const delta = (currentDistance - lastDistance) * 0.0016;
+
+      const rect = container.getBoundingClientRect();
+      const centerX = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left;
+      const centerY = (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top;
+
+      zoomAtPoint(delta, centerX, centerY);
       lastDistance = currentDistance;
     }
   }, { passive: false });
@@ -407,13 +367,26 @@
     return Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
   }
 
-  // Expose functions for inline onclick
+  /* ===== DOUBLE TAP ZOOM ===== */
+  let lastTap = 0;
+  container.addEventListener('click', () => {
+    const now = Date.now();
+    if (now - lastTap < 300) {
+      zoomAtPoint(
+        scale > 1 ? -scale + 0.8 : 0.6,
+        container.clientWidth / 2,
+        container.clientHeight / 2
+      );
+    }
+    lastTap = now;
+  });
+
+  // Expose for inline onclick
   window.zoomIn = zoomIn;
   window.zoomOut = zoomOut;
   window.toggleFullscreen = toggleFullscreen;
   window.nextPage = nextPage;
   window.prevPage = prevPage;
-  window.toggleContinuous = toggleContinuous;
 </script>
 
 </body>
