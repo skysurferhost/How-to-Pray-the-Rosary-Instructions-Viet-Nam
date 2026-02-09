@@ -47,8 +47,20 @@
     bottom: 44px;
     left: 0;
     right: 0;
+
+    /* default: pannable */
     overflow: hidden;
     touch-action: none;
+  }
+
+  /* ✅ Scroll mode (vertical scrolling through the page) */
+  #viewer-container.scroll-enabled {
+    overflow-y: auto;
+    overflow-x: hidden;
+
+    /* allow native scrolling */
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
   }
 
   #viewer {
@@ -61,6 +73,15 @@
     /* 🚀 PERFORMANCE BOOST */
     will-change: transform;
     transform: translateZ(0);
+  }
+
+  /* When scrolling is enabled, viewer should behave like normal content */
+  #viewer-container.scroll-enabled #viewer {
+    position: relative;
+    left: 50%;
+    transform: translateX(-50%) scale(var(--scroll-scale, 1));
+    cursor: default;
+    will-change: auto;
   }
 
   #viewer.dragging {
@@ -122,6 +143,9 @@
 </div>
 
 <div class="page-nav">
+  <!-- ✅ NEW BUTTON on the left side of the left arrow -->
+  <button id="scrollToggleBtn" onclick="toggleScroll()">Enable Scrolling</button>
+
   <button onclick="prevPage()">◀</button>
   <span id="pageIndicator">Page 1</span>
   <button onclick="nextPage()">▶</button>
@@ -148,6 +172,9 @@
   const viewer = document.getElementById('viewer');
   const container = document.getElementById('viewer-container');
   const indicator = document.getElementById('pageIndicator');
+  const scrollToggleBtn = document.getElementById('scrollToggleBtn');
+
+  let scrollEnabled = false;
 
   pdfjsLib.getDocument(url).promise.then(pdf => {
     pdfDoc = pdf;
@@ -169,7 +196,14 @@
       viewer.appendChild(canvas);
 
       indicator.textContent = `Page ${pageNum} / ${totalPages}`;
-      resetTransform();
+
+      // Reset based on current mode
+      if (scrollEnabled) {
+        applyScrollModeSizing();
+        container.scrollTop = 0;
+      } else {
+        resetTransform();
+      }
     });
   }
 
@@ -195,6 +229,8 @@
   }
 
   function zoomAtPoint(delta, cx, cy) {
+    if (scrollEnabled) return; // ✅ zoom disabled in scroll mode (keeps it simple + stable)
+
     const prevScale = targetScale;
     targetScale = Math.min(Math.max(0.25, targetScale + delta), 4);
 
@@ -242,11 +278,41 @@
     }
   }
 
+  /* ✅ Scroll mode toggle */
+  function toggleScroll() {
+    scrollEnabled = !scrollEnabled;
+
+    if (scrollEnabled) {
+      container.classList.add('scroll-enabled');
+      scrollToggleBtn.textContent = "Disable Scrolling";
+
+      // Reset transform state so it doesn't "fight" scroll layout
+      applyScrollModeSizing();
+      container.scrollTop = 0;
+    } else {
+      container.classList.remove('scroll-enabled');
+      scrollToggleBtn.textContent = "Enable Scrolling";
+
+      // Restore pan/zoom positioning
+      resetTransform();
+    }
+  }
+
+  function applyScrollModeSizing() {
+    // Use the current "scale" as the scroll-mode scale, but clamp for sanity
+    const scrollScale = Math.min(Math.max(scale, 0.25), 1.25);
+    container.style.setProperty('--scroll-scale', scrollScale);
+
+    // In scroll mode, we want the content centered with normal flow.
+    // The CSS handles centering via translateX(-50%).
+  }
+
   /* 🖐 PAN / DRAG */
   let dragging = false;
   let startX, startY;
 
   container.addEventListener('pointerdown', e => {
+    if (scrollEnabled) return; // ✅ allow normal scroll behavior
     dragging = true;
     viewer.classList.add('dragging');
     startX = e.clientX - targetX;
@@ -254,7 +320,7 @@
   });
 
   window.addEventListener('pointermove', e => {
-    if (!dragging) return;
+    if (!dragging || scrollEnabled) return;
     targetX = e.clientX - startX;
     targetY = e.clientY - startY;
     posX = targetX;
@@ -269,6 +335,7 @@
 
   /* 🖱 Desktop scroll zoom */
   container.addEventListener('wheel', e => {
+    if (scrollEnabled) return; // ✅ in scroll mode, wheel scrolls naturally
     e.preventDefault();
     const delta = e.deltaY < 0 ? 0.12 : -0.12;
     zoomAtPoint(delta, e.offsetX, e.offsetY);
@@ -278,12 +345,14 @@
   let lastDistance = null;
 
   container.addEventListener('touchstart', e => {
+    if (scrollEnabled) return;
     if (e.touches.length === 2) {
       lastDistance = getDistance(e.touches[0], e.touches[1]);
     }
   }, { passive: false });
 
   container.addEventListener('touchmove', e => {
+    if (scrollEnabled) return;
     if (e.touches.length === 2 && lastDistance !== null) {
       e.preventDefault();
 
@@ -315,6 +384,7 @@
   /* 👆 Double tap zoom */
   let lastTap = 0;
   container.addEventListener('click', () => {
+    if (scrollEnabled) return;
     const now = Date.now();
     if (now - lastTap < 300) {
       zoomAtPoint(
