@@ -47,18 +47,14 @@
     bottom: 44px;
     left: 0;
     right: 0;
-
-    /* default: pannable */
-    overflow: hidden;
-    touch-action: none;
+    overflow: hidden;     /* single-page mode */
+    touch-action: none;   /* single-page mode */
   }
 
-  /* ✅ Scroll mode (vertical scrolling through the page) */
-  #viewer-container.scroll-enabled {
+  /* Continuous scroll mode uses native scroll */
+  #viewer-container.continuous {
     overflow-y: auto;
     overflow-x: hidden;
-
-    /* allow native scrolling */
     touch-action: pan-y;
     -webkit-overflow-scrolling: touch;
   }
@@ -70,17 +66,17 @@
     transform-origin: 0 0;
     cursor: grab;
 
-    /* 🚀 PERFORMANCE BOOST */
     will-change: transform;
     transform: translateZ(0);
   }
 
-  /* When scrolling is enabled, viewer should behave like normal content */
-  #viewer-container.scroll-enabled #viewer {
+  /* In continuous mode, viewer becomes normal flow */
+  #viewer-container.continuous #viewer {
     position: relative;
-    left: 50%;
-    transform: translateX(-50%) scale(var(--scroll-scale, 1));
+    top: 0;
+    left: 0;
     cursor: default;
+    transform: none !important;
     will-change: auto;
   }
 
@@ -88,9 +84,11 @@
     cursor: grabbing;
   }
 
-  canvas {
+  /* Each page canvas */
+  .pageCanvas {
     display: block;
-    margin: 0 auto;
+    margin: 12px auto;
+    background: #111;
   }
 
   /* ===== PAGE NAV ===== */
@@ -119,13 +117,8 @@
   }
 
   @media (max-width: 768px) {
-    .toolbar, .page-nav {
-      height: 50px;
-    }
-    #viewer-container {
-      top: 50px;
-      bottom: 50px;
-    }
+    .toolbar, .page-nav { height: 50px; }
+    #viewer-container { top: 50px; bottom: 50px; }
   }
 </style>
 </head>
@@ -143,9 +136,10 @@
 </div>
 
 <div class="page-nav">
-  <!-- ✅ NEW BUTTON on the left side of the left arrow -->
-  <button id="scrollToggleBtn" onclick="toggleScroll()">Enable Scrolling</button>
+  <!-- ✅ Toggle continuous scroll -->
+  <button id="continuousBtn" onclick="toggleContinuous()">Enable Continuous Scroll</button>
 
+  <!-- Page buttons still available (works in both modes; in continuous mode it scrolls to that page) -->
   <button onclick="prevPage()">◀</button>
   <span id="pageIndicator">Page 1</span>
   <button onclick="nextPage()">▶</button>
@@ -155,107 +149,163 @@
   const url = './How-to-Pray-the-Rosary-Instructions-Viet-Nam.pdf';
 
   let pdfDoc = null;
-  let pageNum = 1;
   let totalPages = 0;
 
-  /* 🔍 Default zoom — more zoomed out on phones */
-  let scale = window.innerWidth < 768 ? 0.3 : 0.35;
-  let posX = 0;
-  let posY = 0;
+  // Single-page state
+  let pageNum = 1;
 
-  /* 🎯 Smoothed transform targets */
-  let targetScale = scale;
-  let targetX = posX;
-  let targetY = posY;
+  // Zoom scale (used in both modes)
+  let scale = window.innerWidth < 768 ? 0.65 : 0.8; // continuous-friendly default
+  const MIN_SCALE = 0.4;
+  const MAX_SCALE = 2.5;
+
+  // Single-page pan state
+  let targetX = 0;
+  let targetY = 0;
   let rafPending = false;
+
+  // Mode
+  let continuous = false;
 
   const viewer = document.getElementById('viewer');
   const container = document.getElementById('viewer-container');
   const indicator = document.getElementById('pageIndicator');
-  const scrollToggleBtn = document.getElementById('scrollToggleBtn');
-
-  let scrollEnabled = false;
+  const continuousBtn = document.getElementById('continuousBtn');
 
   pdfjsLib.getDocument(url).promise.then(pdf => {
     pdfDoc = pdf;
     totalPages = pdf.numPages;
-    renderPage();
+    renderSinglePage(); // default
   });
 
-  function renderPage() {
+  /* =========================
+     RENDER: SINGLE PAGE
+  ========================== */
+  async function renderSinglePage() {
+    continuous = false;
+    container.classList.remove('continuous');
+    continuousBtn.textContent = "Enable Continuous Scroll";
+
     viewer.innerHTML = '';
-    pdfDoc.getPage(pageNum).then(page => {
-      const viewport = page.getViewport({ scale: 1 });
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
+    const page = await pdfDoc.getPage(pageNum);
 
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
+    const viewport = page.getViewport({ scale: 1 });
+    const canvas = document.createElement('canvas');
+    canvas.className = "pageCanvas";
+    const ctx = canvas.getContext('2d');
 
-      page.render({ canvasContext: ctx, viewport });
-      viewer.appendChild(canvas);
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
 
-      indicator.textContent = `Page ${pageNum} / ${totalPages}`;
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    viewer.appendChild(canvas);
 
-      // Reset based on current mode
-      if (scrollEnabled) {
-        applyScrollModeSizing();
-        container.scrollTop = 0;
-      } else {
-        resetTransform();
-      }
-    });
-  }
+    indicator.textContent = `Page ${pageNum} / ${totalPages}`;
 
-  function resetTransform() {
-    targetScale = scale;
-    targetX = (container.clientWidth - viewer.clientWidth * scale) / 2;
+    // center page
+    targetX = (container.clientWidth - canvas.width * scale) / 2;
     targetY = 20;
-    posX = targetX;
-    posY = targetY;
     applyTransform();
   }
 
-  /* 🧈 RAF-smoothed transform */
   function applyTransform() {
     if (rafPending) return;
-
     rafPending = true;
     requestAnimationFrame(() => {
-      viewer.style.transform =
-        `translate(${targetX}px, ${targetY}px) scale(${targetScale})`;
+      viewer.style.transform = `translate(${targetX}px, ${targetY}px) scale(${scale})`;
       rafPending = false;
     });
   }
 
-  function zoomAtPoint(delta, cx, cy) {
-    if (scrollEnabled) return; // ✅ zoom disabled in scroll mode (keeps it simple + stable)
+  /* =========================
+     RENDER: CONTINUOUS (ALL PAGES)
+  ========================== */
+  async function renderContinuous() {
+    continuous = true;
+    container.classList.add('continuous');
+    continuousBtn.textContent = "Disable Continuous Scroll";
 
-    const prevScale = targetScale;
-    targetScale = Math.min(Math.max(0.25, targetScale + delta), 4);
+    viewer.innerHTML = '';
 
-    const dx = cx - targetX;
-    const dy = cy - targetY;
+    // Render all pages stacked
+    for (let i = 1; i <= totalPages; i++) {
+      const page = await pdfDoc.getPage(i);
+      const viewport = page.getViewport({ scale }); // scale applied here
+      const canvas = document.createElement('canvas');
+      canvas.className = "pageCanvas";
+      canvas.dataset.page = String(i);
 
-    targetX -= dx * (targetScale / prevScale - 1);
-    targetY -= dy * (targetScale / prevScale - 1);
+      const ctx = canvas.getContext('2d');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
 
-    scale = targetScale;
-    posX = targetX;
-    posY = targetY;
+      // render sequentially (stable)
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      viewer.appendChild(canvas);
+    }
 
-    applyTransform();
+    // show page indicator based on scroll position
+    updateIndicatorFromScroll();
+    container.scrollTop = 0;
   }
 
-  /* 🔘 Buttons */
+  function updateIndicatorFromScroll() {
+    if (!continuous) return;
+
+    const canvases = viewer.querySelectorAll('.pageCanvas');
+    const top = container.scrollTop;
+
+    let current = 1;
+    canvases.forEach((c, idx) => {
+      // page top relative to scroll container
+      const y = c.offsetTop;
+      if (y <= top + 30) current = idx + 1;
+    });
+
+    pageNum = current;
+    indicator.textContent = `Page ${pageNum} / ${totalPages}`;
+  }
+
+  container.addEventListener('scroll', () => {
+    if (continuous) updateIndicatorFromScroll();
+  });
+
+  /* =========================
+     CONTINUOUS TOGGLE
+  ========================== */
+  function toggleContinuous() {
+    if (!pdfDoc) return;
+    if (continuous) {
+      renderSinglePage();
+    } else {
+      renderContinuous();
+    }
+  }
+
+  /* =========================
+     ZOOM (BOTH MODES)
+  ========================== */
   function zoomIn() {
-    zoomAtPoint(0.2, container.clientWidth / 2, container.clientHeight / 2);
+    setScale(scale + 0.1);
   }
-
   function zoomOut() {
-    zoomAtPoint(-0.2, container.clientWidth / 2, container.clientHeight / 2);
+    setScale(scale - 0.1);
+  }
+  function setScale(newScale) {
+    scale = Math.min(Math.max(MIN_SCALE, newScale), MAX_SCALE);
+
+    if (continuous) {
+      // re-render all pages at new scale
+      renderContinuous();
+    } else {
+      // just re-apply transform in single-page mode
+      applyTransform();
+    }
   }
 
+  /* =========================
+     FULLSCREEN
+  ========================== */
   function toggleFullscreen() {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen();
@@ -264,55 +314,40 @@
     }
   }
 
+  /* =========================
+     PAGE NAV (BOTH MODES)
+  ========================== */
   function nextPage() {
     if (pageNum < totalPages) {
       pageNum++;
-      renderPage();
+      if (continuous) scrollToPage(pageNum);
+      else renderSinglePage();
     }
   }
 
   function prevPage() {
     if (pageNum > 1) {
       pageNum--;
-      renderPage();
+      if (continuous) scrollToPage(pageNum);
+      else renderSinglePage();
     }
   }
 
-  /* ✅ Scroll mode toggle */
-  function toggleScroll() {
-    scrollEnabled = !scrollEnabled;
-
-    if (scrollEnabled) {
-      container.classList.add('scroll-enabled');
-      scrollToggleBtn.textContent = "Disable Scrolling";
-
-      // Reset transform state so it doesn't "fight" scroll layout
-      applyScrollModeSizing();
-      container.scrollTop = 0;
-    } else {
-      container.classList.remove('scroll-enabled');
-      scrollToggleBtn.textContent = "Enable Scrolling";
-
-      // Restore pan/zoom positioning
-      resetTransform();
-    }
+  function scrollToPage(n) {
+    const c = viewer.querySelector(`.pageCanvas[data-page="${n}"]`);
+    if (!c) return;
+    container.scrollTo({ top: c.offsetTop - 10, behavior: 'smooth' });
+    indicator.textContent = `Page ${n} / ${totalPages}`;
   }
 
-  function applyScrollModeSizing() {
-    // Use the current "scale" as the scroll-mode scale, but clamp for sanity
-    const scrollScale = Math.min(Math.max(scale, 0.25), 1.25);
-    container.style.setProperty('--scroll-scale', scrollScale);
-
-    // In scroll mode, we want the content centered with normal flow.
-    // The CSS handles centering via translateX(-50%).
-  }
-
-  /* 🖐 PAN / DRAG */
+  /* =========================
+     PAN / DRAG (SINGLE PAGE ONLY)
+  ========================== */
   let dragging = false;
   let startX, startY;
 
   container.addEventListener('pointerdown', e => {
-    if (scrollEnabled) return; // ✅ allow normal scroll behavior
+    if (continuous) return;
     dragging = true;
     viewer.classList.add('dragging');
     startX = e.clientX - targetX;
@@ -320,11 +355,9 @@
   });
 
   window.addEventListener('pointermove', e => {
-    if (!dragging || scrollEnabled) return;
+    if (!dragging || continuous) return;
     targetX = e.clientX - startX;
     targetY = e.clientY - startY;
-    posX = targetX;
-    posY = targetY;
     applyTransform();
   });
 
@@ -333,39 +366,35 @@
     viewer.classList.remove('dragging');
   });
 
-  /* 🖱 Desktop scroll zoom */
+  /* =========================
+     DESKTOP WHEEL ZOOM (SINGLE PAGE ONLY)
+  ========================== */
   container.addEventListener('wheel', e => {
-    if (scrollEnabled) return; // ✅ in scroll mode, wheel scrolls naturally
+    if (continuous) return; // in continuous, wheel scrolls normally
     e.preventDefault();
-    const delta = e.deltaY < 0 ? 0.12 : -0.12;
-    zoomAtPoint(delta, e.offsetX, e.offsetY);
+    const delta = e.deltaY < 0 ? 0.08 : -0.08;
+    setScale(scale + delta);
   }, { passive: false });
 
-  /* 🤏 Mobile pinch zoom (stable) */
+  /* =========================
+     MOBILE PINCH ZOOM (SINGLE PAGE ONLY)
+  ========================== */
   let lastDistance = null;
 
   container.addEventListener('touchstart', e => {
-    if (scrollEnabled) return;
+    if (continuous) return;
     if (e.touches.length === 2) {
       lastDistance = getDistance(e.touches[0], e.touches[1]);
     }
   }, { passive: false });
 
   container.addEventListener('touchmove', e => {
-    if (scrollEnabled) return;
+    if (continuous) return;
     if (e.touches.length === 2 && lastDistance !== null) {
       e.preventDefault();
-
       const currentDistance = getDistance(e.touches[0], e.touches[1]);
-      const delta = (currentDistance - lastDistance) * 0.0018;
-
-      const rect = container.getBoundingClientRect();
-      const centerX =
-        (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left;
-      const centerY =
-        (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top;
-
-      zoomAtPoint(delta, centerX, centerY);
+      const delta = (currentDistance - lastDistance) * 0.0012;
+      setScale(scale + delta);
       lastDistance = currentDistance;
     }
   }, { passive: false });
@@ -375,26 +404,16 @@
   });
 
   function getDistance(t1, t2) {
-    return Math.hypot(
-      t2.clientX - t1.clientX,
-      t2.clientY - t1.clientY
-    );
+    return Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
   }
 
-  /* 👆 Double tap zoom */
-  let lastTap = 0;
-  container.addEventListener('click', () => {
-    if (scrollEnabled) return;
-    const now = Date.now();
-    if (now - lastTap < 300) {
-      zoomAtPoint(
-        scale > 1 ? -scale + 0.85 : 0.7,
-        container.clientWidth / 2,
-        container.clientHeight / 2
-      );
-    }
-    lastTap = now;
-  });
+  // Expose functions for inline onclick
+  window.zoomIn = zoomIn;
+  window.zoomOut = zoomOut;
+  window.toggleFullscreen = toggleFullscreen;
+  window.nextPage = nextPage;
+  window.prevPage = prevPage;
+  window.toggleContinuous = toggleContinuous;
 </script>
 
 </body>
