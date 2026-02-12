@@ -128,7 +128,7 @@
   <div id="viewer"></div>
 </div>
 
-<div class="Trang-nav">
+<div class="page-nav">
   <button onclick="prevPage()">◀</button>
   <span id="pageIndicator">Loading…</span>
   <button onclick="nextPage()">▶</button>
@@ -307,7 +307,7 @@
       if (viewCenterY > r.yBottom) best = r.page;
     }
     currentPage = best;
-    indicator.textContent = `Page ${currentPage} / ${totalPages}`;
+    indicator.textContent = `Trang ${currentPage} / ${totalPages}`;
   }
 
   function scrollToPage(n) {
